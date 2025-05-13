@@ -1,0 +1,16 @@
+[
+  {
+    "id": "item001",
+    "name": "Sample Item Name 1",
+    "category": "Sample Category A",
+    "description": "Detailed description of Sample Item 1.",
+    "hireFee": 0.00
+  },
+  {
+    "id": "item002",
+    "name": "Sample Item Name 2",
+    "category": "Sample Category B",
+    "description": "Detailed description of Sample Item 2.",
+    "hireFee": 0.00
+  }
+]
