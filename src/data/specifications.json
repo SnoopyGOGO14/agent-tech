@@ -1,0 +1,144 @@
+{
+  "metadata": {
+    "lastUpdated": "2025-05-13T10:30:00Z",
+    "version": "7.2",
+    "baseVersion": "Production Bible 2024 v7"
+  },
+  "categories": {
+    "SOUND": {
+      "DJ_EQUIPMENT": [
+        {
+          "id": "cdj-3000",
+          "name": "Pioneer CDJ 3000",
+          "quantity": 6,
+          "location": "Terrace",
+          "specifications": "Professional DJ multi player",
+          "dateAdded": "2023-10-15",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": [
+            {
+              "quantity": 4,
+              "lastUpdated": "2023-10-15",
+              "changeNote": "Initial setup"
+            }
+          ]
+        }
+      ],
+      "PA_SYSTEMS": []
+    },
+    "LIGHTING": {
+      "MOVING_HEADS": [
+        {
+          "id": "mac-250-krypton",
+          "name": "Martin Mac 250 krypton",
+          "quantity": 4,
+          "location": "Terrace",
+          "specifications": "Moving head fixture",
+          "dateAdded": "2022-06-01",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": []
+        }
+      ]
+    },
+    "VIDEO": {
+      "LED_SCREENS": [
+        {
+          "id": "main-led-wall",
+          "name": "Main LED Wall",
+          "resolution": "1920x896",
+          "pixelPitch": "3.9mm",
+          "dimensions": "3.5m x 7.5m",
+          "processor": "NOVOSTAR",
+          "configuration": "7 panels down, 15 across",
+          "inputs": ["HDMI", "DVI-D"],
+          "dateAdded": "2023-01-15",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": [
+            {
+              "pixelPitch": "4.8mm",
+              "lastUpdated": "2023-01-15",
+              "changeNote": "Upgraded to higher resolution panels"
+            }
+          ]
+        }
+      ]
+    },
+    "PLANT": {
+      "RENTAL_EQUIPMENT": [
+        {
+          "id": "cherry-picker",
+          "name": "Cherry Picker Rental",
+          "cost": 680,
+          "currency": "GBP",
+          "vatApplicable": true,
+          "notes": "Must be booked at least 3 days in advance",
+          "dateAdded": "2022-05-10",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": [
+            {
+              "cost": 650,
+              "lastUpdated": "2023-01-20",
+              "changeNote": "Price increase from supplier"
+            }
+          ]
+        }
+      ],
+      "LABOR": [
+        {
+          "id": "door-staff",
+          "name": "Door Staff",
+          "cost": 14,
+          "currency": "GBP",
+          "costUnit": "per hour per staff member",
+          "vatApplicable": true,
+          "dateAdded": "2022-05-10",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": []
+        }
+      ]
+    },
+    "VENUE": {
+      "DIMENSIONS": [
+        {
+          "id": "stage-dimensions",
+          "name": "Stage Dimensions",
+          "width": "18M",
+          "depth": "3.2M",
+          "notes": "Without stage deck extension",
+          "dateAdded": "2022-05-10",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": []
+        }
+      ],
+      "RESTRICTIONS": [
+        {
+          "id": "sound-restrictions-terrace",
+          "name": "Sound Restrictions - Terrace",
+          "maxDB": 110,
+          "averageDB": 106,
+          "notes": "Maximum of 106db-110db average",
+          "dateAdded": "2022-05-10",
+          "lastUpdated": "2024-03-10",
+          "previousVersions": []
+        }
+      ]
+    }
+  },
+  "changeLog": [
+    {
+      "date": "2024-03-10",
+      "version": "7.2",
+      "author": "Larry Field",
+      "changes": [
+        {
+          "category": "SOUND",
+          "item": "Pioneer CDJ 3000",
+          "field": "quantity",
+          "oldValue": 4,
+          "newValue": 6,
+          "notes": "Added 2 additional CDJ 3000 units"
+        }
+      ]
+    }
+  ]
+}
