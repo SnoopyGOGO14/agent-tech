@@ -1,0 +1,87 @@
+/* EventIntegration.css */
+.event-integration {
+  margin-top: 15px;
+  padding: 15px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.event-loading p,
+.no-events-found p,
+.custom-event-form h3,
+.event-confirmation h3 {
+  margin-top: 0;
+}
+
+.event-list {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.event-item {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  background-color: #fff;
+}
+
+.event-item h4 {
+  margin-top: 0;
+  margin-bottom: 5px;
+}
+
+.event-date {
+  font-size: 0.9em;
+  color: #555;
+  margin-bottom: 5px;
+}
+
+.event-description {
+  font-size: 0.9em;
+  color: #777;
+  margin-bottom: 10px;
+}
+
+.confirm-button,
+.reject-button,
+.custom-event-button,
+.custom-event-form button {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-right: 10px;
+}
+
+.confirm-button {
+  background-color: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.reject-button {
+  background-color: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.custom-event-button {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.custom-event-form input[type="text"] {
+  padding: 8px;
+  margin-right: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.error-message {
+  color: red;
+  font-weight: bold;
+}

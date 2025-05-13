@@ -1,0 +1,203 @@
+/* BudgetCalculator.css */
+.budget-calculator {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.budget-calculator h2, .budget-calculator h3 {
+  color: #333;
+}
+
+.event-selection-area {
+  background-color: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #eee;
+}
+
+.date-picker {
+  margin-bottom: 15px;
+}
+
+.date-picker label {
+  margin-right: 10px;
+  font-weight: bold;
+}
+
+.date-picker input[type="date"] {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.selected-event-display {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #e6f7ff;
+  border: 1px solid #b3e0ff;
+  border-radius: 4px;
+}
+
+.selected-event-display h4 {
+  margin-top: 0;
+  color: #0056b3;
+}
+
+.event-title-display {
+  font-weight: bold;
+}
+
+.event-date-display, .event-description-display {
+  font-size: 0.9em;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.change-event-button {
+  padding: 5px 10px;
+  font-size: 0.8em;
+  background-color: #ffc107;
+  border: none;
+  color: black;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 5px;
+}
+
+.calculator-container {
+  display: flex;
+  gap: 20px;
+}
+
+.equipment-selection, .selected-equipment {
+  flex: 1;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #fff;
+}
+
+.category-selection label {
+  margin-right: 10px;
+}
+
+.category-selection select {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  min-width: 200px;
+}
+
+.item-list {
+  margin-top: 15px;
+}
+
+.item-list ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.item-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.item-list li:last-child {
+  border-bottom: none;
+}
+
+.item-details strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.item-spec, .item-desc {
+  font-size: 0.85em;
+  color: #666;
+  margin: 3px 0;
+}
+
+.item-list button, .selection-list .remove {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.item-list button {
+  background-color: #007bff;
+  color: white;
+}
+
+.selection-list {
+  list-style-type: none;
+  padding: 0;
+  margin-bottom: 15px;
+}
+
+.selection-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.selection-list .remove {
+  background-color: #ef5350;
+  color: white;
+  font-size: 0.8em;
+}
+
+.cost-summary {
+  margin-top: 15px;
+  border-top: 1px solid #ddd;
+  padding-top: 10px;
+}
+
+.cost-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+}
+
+.cost-line.total strong {
+  font-size: 1.1em;
+}
+
+.quote-details {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #007bff;
+}
+
+.quote-event-info {
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+.quote-event-info p {
+  margin: 3px 0;
+}
+
+.print-button {
+  padding: 10px 15px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.empty-selection {
+  color: #777;
+  text-align: center;
+  padding: 20px;
+}

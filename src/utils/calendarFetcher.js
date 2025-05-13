@@ -7,353 +7,432 @@ import { logDebug } from './debug';
  * It provides both direct API access and caching capabilities.
  */
 
-// Cache for storing fetched events to avoid repeated network requests
-let eventCache = {
-  lastFetched: null,
-  events: {},
-  expiryTimeMs: 3600000 // Cache expiry: 1 hour
-};
-
-// Configuration for the fetcher
+// Configuration with calendar URL
 const FETCHER_CONFIG = {
-  // Whether to use a proxy for fetching (helps avoid CORS issues)
   useProxy: true,
-  
-  // Proxy endpoints - in a production environment, this would be a 
-  // server endpoint that forwards requests to calendar338.com
-  proxyUrl: 'https://api.allorigins.win/raw?url=https://calendar338.com/',
-  
-  // Direct URL (will have CORS issues in browser environments)
-  directUrl: 'https://calendar338.com/'
+  directUrl: 'http://calendar338.com',
+  proxyUrl: 'https://api.allorigins.win/get?url=http://calendar338.com',
+  cacheExpiryMs: 3600000 // 1 hour cache
+};
+
+// Cache structure
+let eventCache = {
+  events: [],
+  lastFetched: null,
+  expiryTime: FETCHER_CONFIG.cacheExpiryMs
 };
 
 /**
- * Parse the date from calendar338.com format to our standard YYYY-MM-DD format
- * @param {string} dateStr - The date string from the calendar website
- * @returns {string} Formatted date string
+ * Fetches all events from the Studio 338 calendar
+ * @returns {Promise<Array>} Array of event objects
  */
-const parseCalendarDate = (dateStr) => {
-  try {
-    // Example formats that might be encountered
-    // "Fri 31 May 2024" or "31.05.2024" or other variations
-    
-    // This is a simplified parser - adjust based on actual format from the site
-    const dateParts = dateStr.split(' ');
-    if (dateParts.length >= 3) {
-      // Format: "Fri 31 May 2024"
-      const day = dateParts[1].padStart(2, '0');
-      
-      // Convert month name to month number
-      const months = {
-        'jan': '01', 'january': '01',
-        'feb': '02', 'february': '02',
-        'mar': '03', 'march': '03',
-        'apr': '04', 'april': '04',
-        'may': '05',
-        'jun': '06', 'june': '06',
-        'jul': '07', 'july': '07',
-        'aug': '08', 'august': '08',
-        'sep': '09', 'september': '09',
-        'oct': '10', 'october': '10',
-        'nov': '11', 'november': '11',
-        'dec': '12', 'december': '12'
-      };
-      
-      const monthLower = dateParts[2].toLowerCase();
-      const month = months[monthLower] || '01';
-      const year = dateParts[3] || new Date().getFullYear().toString();
-      
-      return `${year}-${month}-${day}`;
-    }
-    
-    // Fallback for other formats
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0];
-    }
-    
-    logDebug('CalendarFetcher', `Unable to parse date: ${dateStr}`);
-    return null;
-  } catch (error) {
-    logDebug('CalendarFetcher', `Error parsing date: ${error.message}`);
-    return null;
+async function fetchAllEvents() {
+  // Check if cache is valid
+  if (
+    eventCache.events.length > 0 &&
+    eventCache.lastFetched &&
+    Date.now() - eventCache.lastFetched < eventCache.expiryTime
+  ) {
+    logDebug('CalendarFetcher', 'Using cached events data'); // Added context for logDebug
+    return eventCache.events;
   }
-};
 
-/**
- * Fetch all events from calendar338.com
- * @returns {Promise<Object>} Object containing events indexed by date
- */
-export const fetchAllEvents = async () => {
   try {
-    // Check if cache is still valid
-    const now = Date.now();
-    if (
-      eventCache.lastFetched && 
-      eventCache.events && 
-      Object.keys(eventCache.events).length > 0 &&
-      (now - eventCache.lastFetched) < eventCache.expiryTimeMs
-    ) {
-      logDebug('CalendarFetcher', 'Using cached event data');
+    // Determine which URL to use based on config
+    const fetchUrl = FETCHER_CONFIG.useProxy
+      ? FETCHER_CONFIG.proxyUrl
+      : FETCHER_CONFIG.directUrl;
+
+    logDebug('CalendarFetcher', `Fetching events from: ${fetchUrl}`); // Added context
+    const response = await fetch(fetchUrl);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch events: ${response.status}`);
+    }
+
+    let htmlContent;
+    if (FETCHER_CONFIG.useProxy) {
+      // Extract content from proxy response
+      const data = await response.json();
+      htmlContent = data.contents;
+    } else {
+      htmlContent = await response.text();
+    }
+
+    // Parse events from HTML
+    const events = parseCalendarEvents(htmlContent);
+
+    // Update cache
+    eventCache.events = events;
+    eventCache.lastFetched = Date.now();
+
+    logDebug('CalendarFetcher', `Successfully fetched ${events.length} events`); // Added context
+    return events;
+  } catch (error) {
+    logDebug('CalendarFetcher', `Error fetching events: ${error.message}`); // Added context
+    
+    // If cache exists but is expired, still use it as fallback
+    if (eventCache.events.length > 0) {
+      logDebug('CalendarFetcher', 'Using expired cache as fallback'); // Added context
       return eventCache.events;
     }
     
-    logDebug('CalendarFetcher', 'Fetching event data from calendar338.com');
+    // Last resort: return hardcoded fallback events
+    return getFallbackEvents();
+  }
+}
+
+/**
+ * Parse events from calendar HTML content
+ * @param {string} htmlContent - HTML content from calendar page
+ * @returns {Array} Array of parsed event objects
+ */
+function parseCalendarEvents(htmlContent) {
+  const events = [];
+  
+  try {
+    // Create a DOM parser for better HTML handling
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlContent, 'text/html');
     
-    // Choose URL based on configuration
-    const fetchUrl = FETCHER_CONFIG.useProxy ? FETCHER_CONFIG.proxyUrl : FETCHER_CONFIG.directUrl;
-    logDebug('CalendarFetcher', `Using ${FETCHER_CONFIG.useProxy ? 'proxy' : 'direct'} URL: ${fetchUrl}`);
+    // Find event containers - adjust selectors based on actual calendar338.com structure
+    const eventElements = doc.querySelectorAll('.event-item, .calendar-event');
     
-    // Fetch the calendar page
-    const response = await fetch(fetchUrl, {
-      headers: {
-        'User-Agent': 'Studio338-Agent-Tech/1.0',
-        'Accept': 'text/html'
+    eventElements.forEach(element => {
+      try {
+        // Extract event details - adjust these based on actual HTML structure
+        const title = element.querySelector('.event-title, .title')?.textContent.trim() || 'Untitled Event';
+        const dateText = element.querySelector('.event-date, .date')?.textContent.trim() || '';
+        const timeText = element.querySelector('.event-time, .time')?.textContent.trim() || '';
+        const description = element.querySelector('.event-description, .description')?.textContent.trim() || '';
+        
+        // Parse date - handle various formats
+        const eventDate = parseCalendarDate(dateText);
+        
+        // Create event object with all available data
+        const event = {
+          title,
+          date: eventDate,
+          rawDateText: dateText,
+          time: timeText,
+          description,
+          ticketsAvailable: element.textContent.toLowerCase().includes('tickets') || 
+                            element.textContent.toLowerCase().includes('book'),
+          url: element.querySelector('a')?.href || ''
+        };
+        
+        events.push(event);
+      } catch (parseError) {
+        logDebug('CalendarFetcher', `Error parsing individual event: ${parseError.message}`); // Added context
       }
     });
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch calendar data: ${response.status} ${response.statusText}`);
-    }
+    // Sort events by date (newest first)
+    events.sort((a, b) => new Date(b.date) - new Date(a.date));
     
-    const html = await response.text();
-    logDebug('CalendarFetcher', 'Successfully fetched calendar page');
-    
-    // Parse HTML to extract event data
-    // This is a simplified approach - for production, consider using a proper HTML parser
-    const events = {};
-    
-    // Simple regex-based extraction - this should be replaced with proper HTML parsing
-    // The actual selectors and structure will depend on the calendar338.com website
-    const eventRegex = /<div class="event">([\s\S]*?)<\/div>/gi;
-    const dateRegex = /<div class="event-date">([\s\S]*?)<\/div>/i;
-    const titleRegex = /<div class="event-title">([\s\S]*?)<\/div>/i;
-    const timeRegex = /<div class="event-time">([\s\S]*?)<\/div>/i;
-    const descRegex = /<div class="event-description">([\s\S]*?)<\/div>/i;
-    const ticketsRegex = /<div class="event-tickets">([\s\S]*?)<\/div>/i;
-    
-    let eventMatch;
-    while ((eventMatch = eventRegex.exec(html)) !== null) {
-      const eventHTML = eventMatch[1];
-      
-      // Extract event details
-      const dateMatch = eventHTML.match(dateRegex);
-      const titleMatch = eventHTML.match(titleRegex);
-      const timeMatch = eventHTML.match(timeRegex);
-      const descMatch = eventHTML.match(descRegex);
-      const ticketsMatch = eventHTML.match(ticketsRegex);
-      
-      if (dateMatch && titleMatch) {
-        const dateStr = dateMatch[1].trim();
-        const parsedDate = parseCalendarDate(dateStr);
-        
-        if (parsedDate) {
-          events[parsedDate] = {
-            title: titleMatch[1].trim(),
-            description: descMatch ? descMatch[1].trim() : "Event at Studio 338",
-            time: timeMatch ? timeMatch[1].trim() : "TBA",
-            tickets: ticketsMatch ? ticketsMatch[1].trim() : "Available",
-            status: "Confirmed",
-            source: "calendar338.com",
-            capacity: 3000
-          };
-        }
-      }
-    }
-    
-    // If no events were extracted with the regex approach, try an alternative approach
-    if (Object.keys(events).length === 0) {
-      logDebug('CalendarFetcher', 'No events found with primary approach, trying alternative parser');
-      
-      // Look for event listings in a more generic way
-      // This is a fallback in case the website structure doesn't match our primary regexes
-      try {
-        // Find event containers with a different pattern
-        const altEventRegex = /<div[^>]*class="[^"]*event-item[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-        const altTitleRegex = /<h3[^>]*>([\s\S]*?)<\/h3>/i;
-        const altDateRegex = /<span[^>]*class="[^"]*date[^"]*"[^>]*>([\s\S]*?)<\/span>/i;
-        
-        let altEventMatch;
-        while ((altEventMatch = altEventRegex.exec(html)) !== null) {
-          const eventHTML = altEventMatch[1];
-          
-          const titleMatch = eventHTML.match(altTitleRegex);
-          const dateMatch = eventHTML.match(altDateRegex);
-          
-          if (titleMatch && dateMatch) {
-            const title = titleMatch[1].replace(/<[^>]*>/g, '').trim();
-            const dateStr = dateMatch[1].replace(/<[^>]*>/g, '').trim();
-            const parsedDate = parseCalendarDate(dateStr);
-            
-            if (parsedDate && title) {
-              events[parsedDate] = {
-                title: title,
-                description: "Event at Studio 338",
-                time: "TBA",
-                tickets: "Available",
-                status: "Confirmed",
-                source: "calendar338.com (alt parser)",
-                capacity: 3000
-              };
-            }
-          }
-        }
-      } catch (parseError) {
-        logDebug('CalendarFetcher', `Alternative parser error: ${parseError.message}`);
-      }
-    }
-    
-    // If we still have no events, use fallback data
-    if (Object.keys(events).length === 0) {
-      logDebug('CalendarFetcher', 'No events found in the HTML. Using fallback data.');
-      
-      // In a real implementation, we might want to:
-      // 1. Try more parsing techniques
-      // 2. Notify administrators
-      // 3. Use a cached version of the last successful fetch
-      
-      // For demonstration, we're using fallback data
-      const currentYear = new Date().getFullYear();
-      const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-      
-      // Sample fallback events - in a real system, this would be more comprehensive
-      events[`${currentYear}-05-31`] = {
-        title: "ALL DAY I DREAM",
-        description: "Electronic music event featuring melodic house",
-        time: "14:00 - 23:00",
-        tickets: "Available",
-        status: "Confirmed",
-        source: "Fallback data",
-        capacity: 3000
-      };
-      
-      events[`${currentYear}-06-01`] = {
-        title: "AMNESIA LONDON 2024",
-        description: "AMNESIA IBIZA x STUDIO 338 = Two of the world's most iconic electronic music venues come together!",
-        time: "12:00 - 11:00",
-        tickets: "Available",
-        status: "Confirmed",
-        source: "Fallback data",
-        capacity: 3000
-      };
-      
-      events[`${currentYear}-${currentMonth}-15`] = {
-        title: "UPCOMING EVENT",
-        description: "Upcoming electronic music event at Studio 338",
-        time: "22:00 - 06:00",
-        tickets: "Available",
-        status: "Confirmed",
-        source: "Fallback data",
-        capacity: 3000
-      };
-    }
-    
-    // Update cache
-    eventCache = {
-      lastFetched: now,
-      events,
-      expiryTimeMs: 3600000
-    };
-    
-    logDebug('CalendarFetcher', `Successfully extracted ${Object.keys(events).length} events`);
-    return events;
   } catch (error) {
-    logDebug('CalendarFetcher', `Error fetching events: ${error.message}`);
-    
-    // If we have cached data, use it as a fallback even if it's expired
-    if (eventCache.events && Object.keys(eventCache.events).length > 0) {
-      logDebug('CalendarFetcher', 'Using expired cache as fallback due to fetch error');
-      return eventCache.events;
-    }
-    
-    throw error;
+    logDebug('CalendarFetcher', `Error parsing events HTML: ${error.message}`); // Added context
   }
-};
+  
+  // If no events could be parsed, return fallback
+  if (events.length === 0) {
+    return getFallbackEvents();
+  }
+  
+  return events;
+}
 
 /**
- * Get event for a specific date (YYYY-MM-DD format)
- * @param {string} dateString - Date in YYYY-MM-DD format
- * @returns {Promise<Object|null>} Event object or null if not found
+ * Parse calendar date from various formats to YYYY-MM-DD
+ * @param {string} dateStr - Date string from calendar
+ * @returns {string} Standardized date in YYYY-MM-DD format
  */
-export const getEventForDate = async (dateString) => {
+function parseCalendarDate(dateStr) {
+  if (!dateStr) return '';
+  
   try {
-    // Normalize the date string
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      throw new Error('Invalid date format');
+    // Handle various date formats
+    let parsedDate;
+    
+    // Format: "DD Month YYYY" (e.g., "15 June 2024")
+    const longFormatMatch = dateStr.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (longFormatMatch) {
+      const [_, day, month, year] = longFormatMatch;
+      const monthIndex = getMonthIndex(month);
+      parsedDate = new Date(parseInt(year), monthIndex, parseInt(day));
+    } 
+    // Format: "DD/MM/YYYY" or "DD-MM-YYYY"
+    else if (dateStr.match(/\d{1,2}[-\/]\d{1,2}[-\/]\d{4}/)) {
+      const parts = dateStr.split(/[-\/]/);
+      // Assuming day/month/year format (adjust if month/day/year)
+      parsedDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    }
+    // Format: "Month DD, YYYY" (e.g., "June 15, 2024")
+    else if (dateStr.match(/[A-Za-z]+\s+\d{1,2},\s+\d{4}/)) {
+      parsedDate = new Date(dateStr);
+    }
+    // Try direct parsing as last resort
+    else {
+      parsedDate = new Date(dateStr);
     }
     
-    const formattedDate = date.toISOString().split('T')[0];
-    logDebug('CalendarFetcher', `Checking for event on ${formattedDate}`);
+    // Check if date is valid
+    if (isNaN(parsedDate.getTime())) {
+      throw new Error('Invalid date');
+    }
     
-    // Get all events (will use cache if available)
-    const allEvents = await fetchAllEvents();
+    // Format as YYYY-MM-DD
+    return parsedDate.toISOString().split('T')[0];
     
-    // Check if we have an exact date match
-    if (allEvents[formattedDate]) {
-      logDebug('CalendarFetcher', `Found exact date match for ${formattedDate}`);
-      return {
-        date: formattedDate,
-        eventInfo: allEvents[formattedDate],
-        source: 'calendar338.com'
+  } catch (error) {
+    logDebug('CalendarFetcher', `Error parsing date "${dateStr}": ${error.message}`); // Added context
+    return '';
+  }
+}
+
+/**
+ * Get month index from month name
+ * @param {string} monthName - Month name (e.g., "January", "Jan")
+ * @returns {number} Zero-based month index (0-11)
+ */
+function getMonthIndex(monthName) {
+  const months = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+  ];
+  
+  const shortMonths = [
+    'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+    'jul', 'aug', 'sep', 'oct', 'nov', 'dec'
+  ];
+  
+  const normalizedName = monthName.toLowerCase();
+  
+  // Check full month names
+  const fullNameIndex = months.indexOf(normalizedName);
+  if (fullNameIndex !== -1) return fullNameIndex;
+  
+  // Check abbreviated month names
+  const shortNameIndex = shortMonths.indexOf(normalizedName.substring(0, 3));
+  if (shortNameIndex !== -1) return shortNameIndex;
+  
+  // If not found, try to match partial names
+  for (let i = 0; i < months.length; i++) {
+    if (months[i].startsWith(normalizedName)) return i;
+  }
+  
+  // Default to January if not found
+  return 0;
+}
+
+/**
+ * Get event information for a specific date
+ * @param {string} dateString - Date in any common format
+ * @returns {Promise<Object>} Event object or null if no event found
+ */
+async function getEventForDate(dateString) {
+  try {
+    // First, standardize the input date
+    const standardDate = standardizeDate(dateString);
+    if (!standardDate) {
+      return { found: false, message: 'Invalid date format' };
+    }
+    
+    // Fetch all events
+    const events = await fetchAllEvents();
+    
+    // Try exact date match first
+    const exactMatch = events.find(event => event.date === standardDate);
+    if (exactMatch) {
+      return { 
+        found: true, 
+        exact: true,
+        event: exactMatch 
       };
     }
     
-    // If exact match not found, try matching just month-day (ignoring year)
-    const monthDay = formattedDate.substring(5); // Get MM-DD part
-    
-    for (const eventDate in allEvents) {
-      if (eventDate.substring(5) === monthDay) {
-        logDebug('CalendarFetcher', `Found month-day match for ${monthDay} in ${eventDate}`);
-        return {
-          date: formattedDate,
-          eventInfo: allEvents[eventDate],
-          source: 'calendar338.com (year-agnostic match)'
-        };
-      }
+    // If no exact match, try to find events close to this date (within 3 days)
+    const nearbyEvents = findNearbyEvents(events, standardDate, 3);
+    if (nearbyEvents.length > 0) {
+      return {
+        found: true,
+        exact: false,
+        events: nearbyEvents
+      };
     }
     
-    // No event found
-    logDebug('CalendarFetcher', `No event found for ${formattedDate}`);
-    return {
-      date: formattedDate,
-      needsManagerCheck: true,
-      eventInfo: {
-        title: "Enter Event Name",
-        description: "I don't have information about an event on this date. I can check with the manager for you.",
-        checkWithManager: true,
-        source: 'Manager Check Required',
-        capacity: 3000
-      },
-      source: 'manager-check'
+    // No matches found
+    return { 
+      found: false, 
+      message: 'No events found for this date' 
     };
+    
   } catch (error) {
-    logDebug('CalendarFetcher', `Error getting event for date: ${error.message}`);
-    return null;
+    logDebug('CalendarFetcher', `Error in getEventForDate: ${error.message}`); // Added context
+    return { 
+      found: false, 
+      error: true,
+      message: 'Error fetching event information' 
+    };
   }
-};
+}
 
 /**
- * Force refresh the event cache
+ * Find events close to the specified date
+ * @param {Array} events - List of all events
+ * @param {string} targetDate - Date in YYYY-MM-DD format
+ * @param {number} dayRange - Number of days to look before and after
+ * @returns {Array} Matching events within the date range
  */
-export const refreshEventCache = async () => {
-  logDebug('CalendarFetcher', 'Forcing cache refresh');
-  eventCache.lastFetched = null;
+function findNearbyEvents(events, targetDate, dayRange = 3) {
+  const targetTimestamp = new Date(targetDate).getTime();
+  const dayInMs = 86400000; // 24 hours in milliseconds
+  
+  return events.filter(event => {
+    if (!event.date) return false;
+    
+    const eventTimestamp = new Date(event.date).getTime();
+    const difference = Math.abs(eventTimestamp - targetTimestamp);
+    
+    // Check if within range (dayRange days before or after)
+    return difference <= (dayRange * dayInMs);
+  });
+}
+
+/**
+ * Standardize date to YYYY-MM-DD format
+ * @param {string} dateString - Date in any common format
+ * @returns {string} Standardized date or empty string if invalid
+ */
+function standardizeDate(dateString) {
+  try {
+    // Handle different input formats
+    let date;
+    
+    // If already in YYYY-MM-DD format
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateString;
+    }
+    
+    // Try different parsing approaches based on format
+    if (dateString.includes('/') || dateString.includes('-')) {
+      // Format like DD/MM/YYYY or MM-DD-YYYY
+      const parts = dateString.split(/[-\/]/);
+      // Determine format based on year position
+      if (parts[2] && parts[2].length === 4) {
+        // Assume DD/MM/YYYY (typical UK format)
+        date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        
+        // If invalid, try MM/DD/YYYY (US format)
+        if (isNaN(date.getTime())) {
+          date = new Date(`${parts[2]}-${parts[0]}-${parts[1]}`);
+        }
+      } else {
+        // Try direct parsing
+        date = new Date(dateString);
+      }
+    } else {
+      // Try direct parsing for other formats
+      date = new Date(dateString);
+    }
+    
+    // Check if parsing was successful
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    
+    // Format as YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+    
+  } catch (error) {
+    logDebug('CalendarFetcher', `Error standardizing date "${dateString}": ${error.message}`); // Added context
+    return '';
+  }
+}
+
+/**
+ * Generate fallback events when calendar fetching fails
+ * @returns {Array} Array of hardcoded event objects
+ */
+function getFallbackEvents() {
+  // Current date for reference
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  
+  // Generate dates for upcoming weekends (typical event days)
+  const upcomingDates = [];
+  let date = new Date(now);
+  
+  // Find the next Friday
+  while (date.getDay() !== 5) { // 5 = Friday
+    date.setDate(date.getDate() + 1);
+  }
+  
+  // Generate 5 weekend dates (Fri + Sat)
+  for (let i = 0; i < 5; i++) {
+    // Friday
+    upcomingDates.push(new Date(date));
+    
+    // Saturday
+    date.setDate(date.getDate() + 1);
+    upcomingDates.push(new Date(date));
+    
+    // Move to next Friday
+    date.setDate(date.getDate() + 6);
+  }
+  
+  // Create fallback events
+  return upcomingDates.map((date, index) => {
+    const isFriday = date.getDay() === 5;
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Create event names based on day of week
+    const eventName = isFriday 
+      ? `Friday Night Live at Studio 338 (${dateStr})` 
+      : `Saturday Sessions (${dateStr})`;
+      
+    return {
+      title: eventName,
+      date: dateStr,
+      rawDateText: date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      time: isFriday ? '22:00 - 04:00' : '21:00 - 06:00',
+      description: `Join us for an amazing night at Studio 338 with world-class music and entertainment.`,
+      ticketsAvailable: true,
+      url: '',
+      isFallback: true
+    };
+  });
+}
+
+/**
+ * Force refresh of the event cache
+ * @returns {Promise<Array>} Updated array of events
+ */
+async function refreshEventCache() {
+  // Clear the cache
+  eventCache = {
+    events: [],
+    lastFetched: null,
+    expiryTime: FETCHER_CONFIG.cacheExpiryMs
+  };
+  
+  // Fetch fresh data
   return await fetchAllEvents();
-};
+}
 
 /**
- * Set the fetcher to use proxy or direct mode
- * @param {boolean} useProxy - Whether to use a proxy for fetching
+ * Set whether to use proxy for fetching
+ * @param {boolean} useProxy - Whether to use proxy
  */
-export const setUseProxy = (useProxy) => {
+function setUseProxy(useProxy) {
   FETCHER_CONFIG.useProxy = useProxy;
-  logDebug('CalendarFetcher', `Set fetcher to ${useProxy ? 'proxy' : 'direct'} mode`);
-};
+}
 
+// Export all public functions
 export default {
-  getEventForDate,
   fetchAllEvents,
+  getEventForDate,
   refreshEventCache,
   setUseProxy
 };
