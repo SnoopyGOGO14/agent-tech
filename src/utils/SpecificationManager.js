@@ -3,21 +3,26 @@ class SpecificationManager {
     this.specs = null;
     this.lastSyncTimestamp = null;
     
-    // Default to local file mode, but can be configured
     this.useApi = options.useApi || false;
     this.apiBaseUrl = options.apiBaseUrl || '/api';
-    this.localFilePath = options.localFilePath || './data/specifications.json'; // Adjusted path
+    // Default path assuming specifications.json is in public/data/
+    this.localFilePath = options.localFilePath || '/data/specifications.json'; 
   }
 
   async initialize() {
     // Load specifications from local storage first
     const localSpecs = localStorage.getItem('specifications');
     if (localSpecs) {
-      this.specs = JSON.parse(localSpecs);
-      this.lastSyncTimestamp = localStorage.getItem('lastSyncTimestamp');
+      try {
+        this.specs = JSON.parse(localSpecs);
+        this.lastSyncTimestamp = localStorage.getItem('lastSyncTimestamp');
+      } catch (error) {
+        console.error("Error parsing specifications from localStorage:", error);
+        localStorage.removeItem('specifications');
+        localStorage.removeItem('lastSyncTimestamp');
+      }
     }
     
-    // Then check for updates
     await this.syncSpecifications();
   }
 
@@ -25,53 +30,48 @@ class SpecificationManager {
     try {
       let needsUpdate = false;
       let newSpecs = null;
-      let timestamp = null;
+      let newTimestamp = null; // Use a different variable name for clarity
       
       if (this.useApi) {
-        // API approach
         const versionResponse = await fetch(`${this.apiBaseUrl}/specifications/version`);
+        if (!versionResponse.ok) throw new Error(`API version check failed: ${versionResponse.statusText}`);
         const versionData = await versionResponse.json();
-        timestamp = versionData.timestamp;
+        newTimestamp = versionData.timestamp;
         
-        // Check if we need to update
-        needsUpdate = !this.specs || !this.lastSyncTimestamp || timestamp > this.lastSyncTimestamp;
+        needsUpdate = !this.specs || !this.lastSyncTimestamp || newTimestamp > this.lastSyncTimestamp;
         
         if (needsUpdate) {
           const specsResponse = await fetch(`${this.apiBaseUrl}/specifications`);
+          if (!specsResponse.ok) throw new Error(`API specs fetch failed: ${specsResponse.statusText}`);
           newSpecs = await specsResponse.json();
         }
       } else {
-        // Local file approach
-        // Ensure the path is relative to where it might be called from or use an absolute-like path from root
-        const response = await fetch(this.localFilePath); 
+        const response = await fetch(this.localFilePath);
         if (!response.ok) {
           throw new Error(`Failed to fetch local specifications: ${response.statusText} from ${this.localFilePath}`);
         }
         newSpecs = await response.json();
-        timestamp = newSpecs.metadata.lastUpdated;
+        newTimestamp = newSpecs.metadata.lastUpdated;
         
-        // Check if we need to update
         needsUpdate = !this.specs || 
                      !this.lastSyncTimestamp || 
-                     new Date(timestamp) > new Date(this.lastSyncTimestamp || 0); // Ensure lastSyncTimestamp is valid for Date
+                     new Date(newTimestamp) > new Date(this.lastSyncTimestamp || 0);
       }
       
       if (needsUpdate && newSpecs) {
         this.specs = newSpecs;
-        this.lastSyncTimestamp = timestamp;
+        this.lastSyncTimestamp = newTimestamp; // Use the fetched/parsed timestamp
         
-        // Save to local storage for offline access
         localStorage.setItem('specifications', JSON.stringify(this.specs));
-        localStorage.setItem('lastSyncTimestamp', timestamp);
+        localStorage.setItem('lastSyncTimestamp', this.lastSyncTimestamp);
         
-        console.log('Technical specifications updated to version:', newSpecs.metadata.version);
-        return true; // Indicates an update occurred
+        console.log('Technical specifications updated to version:', this.specs.metadata.version);
+        return true;
       }
       
-      return false; // No update needed
+      return false;
     } catch (error) {
       console.error('Failed to sync specifications:', error);
-      // Continue using cached specs if available
       return false;
     }
   }
@@ -92,14 +92,12 @@ class SpecificationManager {
       return categoryData[subcategory] || [];
     }
     
-    // Flatten all subcategories into one array if no specific subcategory is requested
     return Object.values(categoryData).flat();
   }
   
   getItemById(id) {
     if (!this.specs || !this.specs.categories) return null;
     
-    // Search through all categories and subcategories
     for (const categoryKey in this.specs.categories) {
       const category = this.specs.categories[categoryKey];
       for (const subCategoryKey in category) {
@@ -117,22 +115,16 @@ class SpecificationManager {
     const item = this.getItemById(id);
     if (!item) return [];
     
-    // Combine current version with previous versions
-    // The 'current state' part is conceptual; actual changes should be logged in previousVersions
     let history = [];
     if (item.previousVersions && Array.isArray(item.previousVersions)) {
         history = [...item.previousVersions];
     }
-    // Add the current state as the most recent record if it makes sense for display
-    // This assumes lastUpdated and other relevant fields represent the current "version" of the item itself
     history.unshift({
-        // lastUpdated might be the timestamp, changeNote for what changed to this state if available
         lastUpdated: item.lastUpdated, 
-        changeNote: "Current version", // Or derive this from comparison if needed
-        // Include all current details of the item to represent its state at item.lastUpdated
+        changeNote: "Current version", 
         ...item 
     });
-    return history.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated)); // Ensure newest first
+    return history.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
   }
   
   getRecentChanges(days = 30) {
@@ -143,7 +135,7 @@ class SpecificationManager {
     
     return this.specs.changeLog.filter(change => {
       return new Date(change.date) >= cutoffDate;
-    }).sort((a,b) => new Date(b.date) - new Date(a.date)); // Ensure newest first
+    }).sort((a,b) => new Date(b.date) - new Date(a.date));
   }
 }
 
